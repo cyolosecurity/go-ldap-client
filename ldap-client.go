@@ -11,6 +11,7 @@ import (
 
 // adPasswordAttribute is the password attribute name in active directory.
 const adPasswordAttributeName = "UnicodePwd"
+const openLdapPasswordAttributeName = "userPassword"
 
 var (
 	// errUserNotExist represents a situation in which the user object doesn't exist.
@@ -250,9 +251,8 @@ func (lc *LDAPClient) GetAllGroupsByName(groupName string) ([]LdapGroup, error) 
 	return groups, nil
 }
 
-// ChangeUserPassword changes user's password.
-// Note - currently this function is relevant only to Active Directory.
-func (lc *LDAPClient) ChangeUserPassword(username, oldPassword, newPassword string) (err error) {
+// ChangeADUserPassword changes user's password.
+func (lc *LDAPClient) ChangeADUserPassword(username, oldPassword, newPassword string) (err error) {
 	err = lc.Connect()
 	if err != nil {
 		return
@@ -313,6 +313,72 @@ func (lc *LDAPClient) ChangeUserPassword(username, oldPassword, newPassword stri
 	modify := ldap.NewModifyRequest(userDN)
 	modify.Delete(adPasswordAttributeName, []string{oldEncodedPass})
 	modify.Add(adPasswordAttributeName, []string{newEncodedPass})
+	if err = lc.Conn.Modify(modify); err != nil {
+		err = fmt.Errorf("password could not be changed: %w", err)
+		return
+	}
+
+	// bind as the user to verify their new password
+	if err = lc.Conn.Bind(userDN, newPassword); err != nil {
+		err = fmt.Errorf("could not bind user via new password: %w", err)
+		return
+	}
+
+	return
+}
+
+// ChangeOpenLDAPUserPassword changes user's password.
+func (lc *LDAPClient) ChangeOpenLDAPUserPassword(username, oldPassword, newPassword string) (err error) {
+	err = lc.Connect()
+	if err != nil {
+		return
+	}
+
+	// first bind with a read only user
+	if lc.BindDN != "" && lc.BindPassword != "" {
+		if err = lc.Conn.Bind(lc.BindDN, lc.BindPassword); err != nil {
+			err = fmt.Errorf("could not bind read only user: %w", err)
+			return
+		}
+	}
+
+	attributes := append(lc.Attributes, "dn")
+	// Search for the given username
+	searchRequest := ldap.NewSearchRequest(
+		lc.Base,
+		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+		fmt.Sprintf(lc.UserFilter, username),
+		attributes,
+		nil,
+	)
+
+	sr, err := lc.Conn.Search(searchRequest)
+	if err != nil {
+		return err
+	}
+
+	if len(sr.Entries) < 1 {
+		return errUserNotExist
+	}
+
+	if len(sr.Entries) > 1 {
+		return errUserNotIdentified
+	}
+
+	userDN := sr.Entries[0].DN
+	user := map[string][]string{}
+	for _, attr := range lc.Attributes {
+		user[attr] = sr.Entries[0].GetAttributeValues(attr)
+	}
+
+	// bind as the user to verify their current password
+	if err = lc.Conn.Bind(userDN, oldPassword); err != nil {
+		err = fmt.Errorf("could not bind user via old password: %w", err)
+		return
+	}
+
+	modify := ldap.NewModifyRequest(userDN)
+	modify.Replace(openLdapPasswordAttributeName, []string{newPassword})
 	if err = lc.Conn.Modify(modify); err != nil {
 		err = fmt.Errorf("password could not be changed: %w", err)
 		return
