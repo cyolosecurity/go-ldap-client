@@ -234,7 +234,7 @@ func (lc *LDAPClient) GetAllGroupsByName(groupName string) ([]LdapGroup, error) 
 	}
 
 	searchRequest := ldap.NewSearchRequest(
-		lc.GroupsDN,
+		lc.Base,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		fmt.Sprintf("(&(objectClass=Group)(cn=*%s*))", groupName),
 		[]string{"cn"},
