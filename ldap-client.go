@@ -384,7 +384,7 @@ func (lc *LDAPClient) GetAllGroupsWithMembersByDN(groupDN []string) ([]*LdapGrou
 			if err != nil{
 				// don't return error when result is no object
 				if isNoObjectError(err){
-					return groups,nil
+					continue
 				}
 				return nil, err
 			}
