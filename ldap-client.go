@@ -556,5 +556,7 @@ func isNoObjectError(err error) bool{
 }
 
 func isErrUserMustResetPassword(err error) bool {
-	return ldap.IsErrorWithCode(err, ldap.LDAPResultInvalidCredentials) && strings.Contains(err.Error(), "data 773")
+	return ldap.IsErrorWithCode(err, ldap.LDAPResultInvalidCredentials) &&
+		( strings.Contains(err.Error(), "data 773") || strings.Contains(err.Error(), "data 532"))
+
 }
