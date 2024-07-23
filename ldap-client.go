@@ -217,7 +217,7 @@ func (lc *LDAPClient) UsersSearch(orFilter string,uidAttr string) (bool, map[str
 				user[attr] = val
 			}
 		}
-		users[entry.GetAttributeValue(uidAttr)] = user
+		users[strings.ToLower(entry.GetAttributeValue(uidAttr))] = user
 	}
 	return true, users, nil
 }
