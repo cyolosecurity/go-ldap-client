@@ -5,7 +5,6 @@ package ldap
 import (
 	"crypto/tls"
 	"fmt"
-	"errors"
 	"strings"
 	"golang.org/x/text/encoding/unicode"
 	"gopkg.in/ldap.v2"
@@ -496,7 +495,15 @@ func (lc *LDAPClient) GetUserByCN(userCN, uidAttr string)(uid string, err error)
 		return "", err
 	}
 	if len(sr.Entries) != 1 {
-		return "", errors.New("found mor that one user")
+		var uids []string
+		for _, entry := range sr.Entries {
+			if uid := entry.GetAttributeValue(uidAttr); uid != "" {
+				uids = append(uids, uid)
+			}
+		}
+
+		uid = strings.Join(uids, ",")
+		return "", fmt.Errorf("found more than one user for the given cn: %s %s", userCN,uid)
 	}
 	userEntry := sr.Entries[0]
 	uid = userEntry.GetAttributeValue(uidAttr)
