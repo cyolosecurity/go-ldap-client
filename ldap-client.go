@@ -495,15 +495,18 @@ func (lc *LDAPClient) GetUserByCN(userCN, uidAttr string)(uid string, err error)
 		return "", err
 	}
 	if len(sr.Entries) != 1 {
-		var uids []string
+		var uids := make([]string, 0)
 		for _, entry := range sr.Entries {
 			if uid := entry.GetAttributeValue(uidAttr); uid != "" {
 				uids = append(uids, uid)
 			}
 		}
 
+		if len(uids) == 1 {
+			return uids[0], nil
+		}
 		uid = strings.Join(uids, ",")
-		return "", fmt.Errorf("found more than one user for the given cn: %s %s", userCN,uid)
+		return "", fmt.Errorf("found %d users for the given cn: %s : %s", len(sr.Entries) userCN,uid)
 	}
 	userEntry := sr.Entries[0]
 	uid = userEntry.GetAttributeValue(uidAttr)
