@@ -155,6 +155,8 @@ func (lc *LDAPClient) Authenticate(username, password string) (bool, map[string]
 	for _, attr := range lc.Attributes {
 		user[attr] = sr.Entries[0].GetAttributeValues(attr)
 	}
+	// Include the DN in the returned data for external_id mapping
+	user["dn"] = []string{userDN}
 
 	// Bind as the user to verify their password
 	err = lc.Conn.Bind(userDN, password)
@@ -301,8 +303,9 @@ func (lc *LDAPClient) GetAllGroupsByName(groupName string) ([]*LdapGroup, error)
 
 	searchRequest := ldap.NewSearchRequest(
 		lc.Base,
+		// Support multiple LDAP implementations: OpenLDAP (groupOfNames, posixGroup) and AD (Group)
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-		fmt.Sprintf("(&(objectClass=Group)(cn=*%s*))", groupName),
+		fmt.Sprintf("(&(|(objectClass=groupOfNames)(objectClass=posixGroup)(objectClass=Group))(cn=*%s*))", groupName),
 		[]string{"cn"},
 		nil,
 	)
@@ -345,8 +348,9 @@ func (lc *LDAPClient) GetAllGroupsWithMembersByDN(groupDN []string) ([]*LdapGrou
 	if len(groupDN) == 0 {
 		searchRequest = ldap.NewSearchRequest(
 			lc.GroupsDN,
+			// Support multiple LDAP implementations: OpenLDAP (groupOfNames, posixGroup) and AD (Group)
 			ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-			"(&(objectClass=Group))",
+			"(&(|(objectClass=groupOfNames)(objectClass=posixGroup)(objectClass=Group)))",
 			[]string{"cn", "member", "memberUid"},
 			nil,
 		)
@@ -373,8 +377,9 @@ func (lc *LDAPClient) GetAllGroupsWithMembersByDN(groupDN []string) ([]*LdapGrou
 		for _, groupDN := range groupDN {
 			searchRequest = ldap.NewSearchRequest(
 				groupDN,
-				ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-				"(&(objectClass=Group))",
+				// Support multiple LDAP implementations: OpenLDAP (groupOfNames, posixGroup) and AD (Group)
+				ldap.ScopeBaseObject, ldap.NeverDerefAliases, 0, 0, false,
+				"(&(|(objectClass=groupOfNames)(objectClass=posixGroup)(objectClass=Group)))",
 				[]string{"cn", "member", "memberUid"},
 				nil,
 			)
